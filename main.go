@@ -13,12 +13,12 @@ import (
 
 func printHelp() {
 	fmt.Println("--ip_server 		获取客户端IP的网络服务地址")
-	fmt.Println("--ip_server_key 	获取IP服务的响应结构，响应为x.x.x.x字符串即ip地址时传入root，响应为JSON时传入ip地址对应的key（只支持一维）")
+	fmt.Println("--ip_server_key 	获取IP服务的响应结构，响应为x.x.x.x字符串即ip地址时传入root，响应为JSON时传入ip地址对应的key（只支持一维JSON）")
 	fmt.Println("--dns_server 		DNS解析服务商，CloudFlare传入cf，阿里传入al，腾讯传入tc，NameSilo传入ns， 暂不支持其它")
 	fmt.Println("--zone_id		CloudFlare区域ID")
 	fmt.Println("--api_token 		CloudFlare区域API令牌")
 	fmt.Println("--dns_id 		CloudFlare区域下需修改的解析ID")
-	fmt.Println("--domain		CloudFlare区域下需修改的域名")
+	// fmt.Println("--domain		CloudFlare区域下需修改的域名")
 }
 
 func initFlag() (string, string, string, string, string, string, string, error) {
