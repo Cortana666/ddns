@@ -32,11 +32,11 @@ var hostRecord string
 var domain string
 
 func printHelp() {
-	fmt.Println("--ip_server 		获取客户端IP的网络服务地址")
-	fmt.Println("--ip_server_key 	获取IP服务的响应结构，响应为x.x.x.x字符串即ip地址时传入root，响应为JSON时传入ip地址对应的key（只支持一维JSON）")
+	fmt.Println("--ip_server 		默认为https://api.ipify.org/，获取客户端IP的网络服务地址")
+	fmt.Println("--ip_server_key 	默认为root，获取IP服务的响应结构，响应为x.x.x.x字符串即ip地址时传入root，响应为JSON时传入ip地址对应的key（只支持一维JSON）")
 	fmt.Println("--dns_server 		DNS解析服务商，CloudFlare传入cf，阿里传入al，腾讯传入tc，NameSilo传入ns， 暂不支持其它")
 	fmt.Println("--dns_id 		DNS解析记录ID")
-	fmt.Println("--record_type 		记录类型，仅支持A、AAAA，默认为A")
+	fmt.Println("--record_type 		默认为A，记录类型，仅支持A、AAAA")
 	fmt.Println("--host_record		主机记录")
 	fmt.Println("--api_key 		API令牌")
 	fmt.Println("--zone_id		CloudFlare区域ID")
@@ -45,8 +45,8 @@ func printHelp() {
 }
 
 func initFlag() error {
-	flag.StringVar(&ipServer, "ip_server", "", "获取客户端IP的网络服务地址")
-	flag.StringVar(&ipServerKey, "ip_server_key", "", "获取IP服务的响应结构")
+	flag.StringVar(&ipServer, "ip_server", "https://api.ipify.org/", "获取客户端IP的网络服务地址")
+	flag.StringVar(&ipServerKey, "ip_server_key", "root", "获取IP服务的响应结构")
 	flag.StringVar(&dnsSever, "dns_server", "", "DNS解析服务商")
 	flag.StringVar(&dnsId, "dns_id", "", "DNS解析记录ID")
 	flag.StringVar(&recordType, "record_type", "A", "记录类型")
@@ -58,7 +58,7 @@ func initFlag() error {
 
 	flag.Parse()
 
-	if ipServer == "" || ipServerKey == "" || dnsSever == "" || dnsId == "" || hostRecord == "" {
+	if dnsSever == "" || dnsId == "" || hostRecord == "" {
 		return errors.New("参数错误：ip_server、ip_server_key、dns_server、dns_id、host_record必填")
 	}
 
