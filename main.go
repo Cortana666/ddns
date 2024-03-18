@@ -27,6 +27,7 @@ var apiKey string
 var apiSecret string
 var dnsId string
 var hostRecord string
+var domain string
 
 func printHelp() {
 	fmt.Println("--ip_server 		获取客户端IP的网络服务地址")
@@ -36,7 +37,8 @@ func printHelp() {
 	fmt.Println("--host_record		主机记录")
 	fmt.Println("--api_key 		API令牌")
 	fmt.Println("--zone_id		CloudFlare区域ID")
-	fmt.Println("--api_secret 		阿里云API密钥")
+	fmt.Println("--api_secret 		API密钥")
+	fmt.Println("--domain 		腾讯云DNS解析二级域名")
 }
 
 func initFlag() error {
@@ -47,7 +49,8 @@ func initFlag() error {
 	flag.StringVar(&hostRecord, "host_record", "", "主机记录")
 	flag.StringVar(&apiKey, "api_key", "", "API令牌")
 	flag.StringVar(&zoneId, "zone_id", "", "CloudFlare区域ID")
-	flag.StringVar(&apiSecret, "api_secret", "", "阿里云API密钥")
+	flag.StringVar(&apiSecret, "api_secret", "", "API密钥")
+	flag.StringVar(&domain, "domain", "", "腾讯云DNS解析二级域名")
 
 	flag.Parse()
 
@@ -64,7 +67,9 @@ func initFlag() error {
 			return errors.New("参数错误：Aliyun下api_key、api_secret必填")
 		}
 	} else if dnsSever == "tc" {
-		return nil // ...
+		if apiKey == "" || apiSecret == "" || domain == "" {
+			return errors.New("参数错误：Aliyun下api_key、api_secret、domain必填")
+		}
 	} else if dnsSever == "ns" {
 		return nil // ...
 	} else {
@@ -74,7 +79,7 @@ func initFlag() error {
 	return nil // ...
 }
 
-func getClientIpv4(ipServer string, ipServerKey string) (string, error) {
+func getClientIpv4() (string, error) {
 	resp, err := http.Get(ipServer)
 	if err != nil {
 		return "", errors.New("获取IP失败：" + err.Error())
@@ -107,7 +112,7 @@ func getClientIpv4(ipServer string, ipServerKey string) (string, error) {
 	}
 }
 
-func checkIpChange(ip string, dnsId string) error {
+func checkIpChange(ip string) error {
 	_, err := os.Stat("tmp/" + dnsId + ".txt")
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -142,7 +147,7 @@ func checkIpChange(ip string, dnsId string) error {
 	return nil
 }
 
-func saveIp(ip string, dnsId string) error {
+func saveIp(ip string) error {
 	_, err := os.Stat("tmp/")
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -170,7 +175,7 @@ func saveIp(ip string, dnsId string) error {
 	return nil
 }
 
-func cloudFlareDnsIpEdit(ip string, zoneId string, apiKey string, dnsId string, hostRecord string) error {
+func cloudFlareDnsIpEdit(ip string) error {
 
 	// req, err := http.NewRequest("GET", "https://api.cloudflare.com/client/v4/zones/"+zoneId+"/dns_records", nil)
 	// if err != nil {
@@ -237,7 +242,7 @@ func cloudFlareDnsIpEdit(ip string, zoneId string, apiKey string, dnsId string, 
 	return nil
 }
 
-func aliyunSignature(reqBody map[string]interface{}, apiSecret string) string {
+func aliyunSignature(reqBody map[string]interface{}) string {
 	queryParams := url.Values{}
 	for key, value := range reqBody {
 		queryParams.Set(key, value.(string))
@@ -253,7 +258,7 @@ func aliyunSignature(reqBody map[string]interface{}, apiSecret string) string {
 	return base64Encoded
 }
 
-func AliyunDnsIpEdit(ip string, apiKey string, dnsId string, hostRecord string) error {
+func aliyunDnsIpEdit(ip string) error {
 	reqBody := map[string]interface{}{
 		"AccessKeyId":      apiKey,
 		"Action":           "UpdateDomainRecord",
@@ -268,7 +273,7 @@ func AliyunDnsIpEdit(ip string, apiKey string, dnsId string, hostRecord string) 
 		"Value":            ip,
 		"Version":          "2015-01-09",
 	}
-	reqBody["Signature"] = aliyunSignature(reqBody, apiSecret)
+	reqBody["Signature"] = aliyunSignature(reqBody)
 	formData := url.Values{}
 	for key, value := range reqBody {
 		formData.Set(key, value.(string))
@@ -294,6 +299,62 @@ func AliyunDnsIpEdit(ip string, apiKey string, dnsId string, hostRecord string) 
 	return nil
 }
 
+func tencentSignature(reqBody map[string]interface{}) string {
+	queryParams := url.Values{}
+	for key, value := range reqBody {
+		queryParams.Set(key, value.(string))
+	}
+	CanonicalizedQueryString := queryParams.Encode()
+	stringToSign := "POSTdnspod.tencentcloudapi.com/?" + CanonicalizedQueryString
+
+	hmacSha1 := hmac.New(sha1.New, []byte(apiSecret))
+	hmacSha1.Write([]byte(stringToSign))
+	hmacSignature := hmacSha1.Sum(nil)
+	base64Encoded := base64.StdEncoding.EncodeToString(hmacSignature)
+
+	return base64Encoded
+}
+
+func tencentDnsIpEdit(ip string) error {
+	reqBody := map[string]interface{}{
+		"Action":     "ModifyRecord",
+		"Domain":     domain,
+		"Nonce":      strconv.Itoa(rand.Intn(99999999999999-10000000000000+1) + 10000000000000),
+		"RecordType": "A",
+		"RecordId":   dnsId,
+		"RecordLine": "默认",
+		"SecretId":   apiKey,
+		"SubDomain":  hostRecord,
+		"Timestamp":  strconv.FormatInt(time.Now().Unix(), 10),
+		"Value":      ip,
+		"Version":    "2021-03-23",
+	}
+	reqBody["Signature"] = tencentSignature(reqBody)
+	formData := url.Values{}
+	for key, value := range reqBody {
+		formData.Set(key, value.(string))
+	}
+	resp, err := http.Post("https://dnspod.tencentcloudapi.com", "application/x-www-form-urlencoded", strings.NewReader(formData.Encode()))
+	if err != nil {
+		return errors.New("更改DNS解析失败：" + err.Error())
+	}
+	defer resp.Body.Close()
+	respBodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return errors.New("更改DNS解析失败：" + err.Error())
+	}
+	respBody := make(map[string]interface{})
+	err = json.Unmarshal(respBodyBytes, &respBody)
+	if err != nil {
+		return errors.New("更改DNS解析失败：" + err.Error())
+	}
+	if _, ok := respBody["Response"].(map[string]interface{})["Error"]; ok {
+		return errors.New("更改DNS解析失败：" + respBody["Response"].(map[string]interface{})["Error"].(map[string]interface{})["Message"].(string))
+	}
+
+	return nil
+}
+
 func main() {
 	err := initFlag()
 	if err != nil {
@@ -302,35 +363,38 @@ func main() {
 		return
 	}
 
-	ip, err := getClientIpv4(ipServer, ipServerKey)
+	ip, err := getClientIpv4()
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	err = checkIpChange(ip, dnsId)
+	err = checkIpChange(ip)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
 	if dnsSever == "cf" {
-		err = cloudFlareDnsIpEdit(ip, zoneId, apiKey, dnsId, hostRecord)
+		err = cloudFlareDnsIpEdit(ip)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
 	}
 	if dnsSever == "al" {
-		err = AliyunDnsIpEdit(ip, apiKey, dnsId, hostRecord)
+		err = aliyunDnsIpEdit(ip)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
 	}
 	if dnsSever == "tc" {
-		fmt.Println("敬请期待")
-		return
+		err = tencentDnsIpEdit(ip)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 	}
 	if dnsSever == "ns" {
 		fmt.Println("敬请期待")
@@ -339,7 +403,7 @@ func main() {
 
 	fmt.Println("更改DNS解析成功：当前IP为" + ip)
 
-	err = saveIp(ip, dnsId)
+	err = saveIp(ip)
 	if err != nil {
 		fmt.Println(err)
 		return
