@@ -24,16 +24,20 @@
 --domain                腾讯云DNS解析二级域名
 ```
 ---
-示例：
+示例：  
+CloudFLare:
 ```shell
-go run . --dns_server cf --host_record www --dns_id "123456" --api_key "123456" --zone_id "123456"
+ddns --dns_server cf --host_record www --dns_id "123456" --api_key "123456" --zone_id "123456"
 ```
+阿里云：
 ```shell
-go run . --dns_server al --host_record www --dns_id "123456" --api_key "123456" --api_secret "123456"
+ddns --dns_server al --host_record www --dns_id "123456" --api_key "123456" --api_secret "123456"
 ```
+腾讯云：
 ```shell
-go run . --dns_server tc --host_record www --dns_id "123456" --api_key "123456" --api_secret "123456" --domain abc.com
+ddns --dns_server tc --host_record www --dns_id "123456" --api_key "123456" --api_secret "123456" --domain abc.com
 ```
+NameSilo：
 ```shell
-go run . --dns_server ns --host_record www --dns_id "123456" --api_key "123456" --domain abc.com
+ddns --dns_server ns --host_record www --dns_id "123456" --api_key "123456" --domain abc.com
 ```
