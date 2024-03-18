@@ -6,6 +6,7 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"flag"
 	"fmt"
@@ -26,6 +27,7 @@ var zoneId string
 var apiKey string
 var apiSecret string
 var dnsId string
+var recordType string
 var hostRecord string
 var domain string
 
@@ -34,6 +36,7 @@ func printHelp() {
 	fmt.Println("--ip_server_key 	获取IP服务的响应结构，响应为x.x.x.x字符串即ip地址时传入root，响应为JSON时传入ip地址对应的key（只支持一维JSON）")
 	fmt.Println("--dns_server 		DNS解析服务商，CloudFlare传入cf，阿里传入al，腾讯传入tc，NameSilo传入ns， 暂不支持其它")
 	fmt.Println("--dns_id 		DNS解析记录ID")
+	fmt.Println("--record_type 		记录类型，仅支持A、AAAA，默认为A")
 	fmt.Println("--host_record		主机记录")
 	fmt.Println("--api_key 		API令牌")
 	fmt.Println("--zone_id		CloudFlare区域ID")
@@ -46,6 +49,7 @@ func initFlag() error {
 	flag.StringVar(&ipServerKey, "ip_server_key", "", "获取IP服务的响应结构")
 	flag.StringVar(&dnsSever, "dns_server", "", "DNS解析服务商")
 	flag.StringVar(&dnsId, "dns_id", "", "DNS解析记录ID")
+	flag.StringVar(&recordType, "record_type", "A", "记录类型")
 	flag.StringVar(&hostRecord, "host_record", "", "主机记录")
 	flag.StringVar(&apiKey, "api_key", "", "API令牌")
 	flag.StringVar(&zoneId, "zone_id", "", "CloudFlare区域ID")
@@ -71,15 +75,21 @@ func initFlag() error {
 			return errors.New("参数错误：Aliyun下api_key、api_secret、domain必填")
 		}
 	} else if dnsSever == "ns" {
-		return nil // ...
+		if apiKey == "" || domain == "" {
+			return errors.New("参数错误：NameSilo下api_key、domain必填")
+		}
 	} else {
 		return errors.New("参数错误：dns_server填写不正确")
 	}
 
-	return nil // ...
+	if recordType != "A" && recordType != "AAAA" {
+		return errors.New("参数错误：record_type填写不正确")
+	}
+
+	return nil
 }
 
-func getClientIpv4() (string, error) {
+func getClientIp() (string, error) {
 	resp, err := http.Get(ipServer)
 	if err != nil {
 		return "", errors.New("获取IP失败：" + err.Error())
@@ -93,7 +103,7 @@ func getClientIpv4() (string, error) {
 
 	if ipServerKey == "root" {
 		resp := string(body)
-		if len(resp) < 7 || len(resp) > 15 {
+		if len(resp) < 7 || len(resp) > 38 {
 			return "", errors.New("获取IP失败：IP地址错误")
 		}
 		return string(body), nil
@@ -113,7 +123,7 @@ func getClientIpv4() (string, error) {
 }
 
 func checkIpChange(ip string) error {
-	_, err := os.Stat("tmp/" + dnsId + ".txt")
+	_, err := os.Stat("tmp/" + dnsSever + "_" + dnsId + ".txt")
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -122,7 +132,7 @@ func checkIpChange(ip string) error {
 		}
 	}
 
-	file, err := os.Open("tmp/" + dnsId + ".txt")
+	file, err := os.Open("tmp/" + dnsSever + "_" + dnsId + ".txt")
 	if err != nil {
 		return errors.New("文件打开错误：" + err.Error())
 	}
@@ -161,7 +171,7 @@ func saveIp(ip string) error {
 		}
 	}
 
-	file, err := os.Create("tmp/" + dnsId + ".txt")
+	file, err := os.Create("tmp/" + dnsSever + "_" + dnsId + ".txt")
 	if err != nil {
 		return errors.New("文件创建失败：" + err.Error())
 	}
@@ -176,38 +186,10 @@ func saveIp(ip string) error {
 }
 
 func cloudFlareDnsIpEdit(ip string) error {
-
-	// req, err := http.NewRequest("GET", "https://api.cloudflare.com/client/v4/zones/"+zoneId+"/dns_records", nil)
-	// if err != nil {
-	// 	return errors.New("查询DNS解析记录失败：" + err.Error())
-	// }
-	// req.Header.Add("Content-Type", "application/json")
-	// req.Header.Add("Authorization", "Bearer "+key)
-	// client := &http.Client{}
-	// resp, err := client.Do(req)
-	// if err != nil {
-	// 	return errors.New("查询DNS解析记录失败：" + err.Error())
-	// }
-	// defer resp.Body.Close()
-	// respBodyBytes, err := io.ReadAll(resp.Body)
-	// if err != nil {
-	// 	return errors.New("查询DNS解析记录失败：" + err.Error())
-	// }
-	// respBody := make(map[string]interface{})
-	// err = json.Unmarshal(respBodyBytes, &respBody)
-	// if err != nil {
-	// 	return errors.New("查询DNS解析记录失败：" + err.Error())
-	// }
-	// if respBody["success"] != true {
-	// 	return errors.New("查询DNS解析记录失败：" + (respBody["errors"].([]interface{})[0]).(map[string]interface{})["message"].(string))
-	// }
-
-	// dnsId := ""
-
 	reqBody := map[string]interface{}{
 		"content": ip,
 		"name":    hostRecord,
-		"type":    "A",
+		"type":    recordType,
 	}
 	reqBodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
@@ -269,7 +251,7 @@ func aliyunDnsIpEdit(ip string) error {
 		"SignatureNonce":   strconv.Itoa(rand.Intn(99999999999999-10000000000000+1) + 10000000000000),
 		"SignatureVersion": "1.0",
 		"Timestamp":        time.Now().UTC().Format("2006-01-02T15:04:05Z"),
-		"Type":             "A",
+		"Type":             recordType,
 		"Value":            ip,
 		"Version":          "2015-01-09",
 	}
@@ -320,7 +302,7 @@ func tencentDnsIpEdit(ip string) error {
 		"Action":     "ModifyRecord",
 		"Domain":     domain,
 		"Nonce":      strconv.Itoa(rand.Intn(99999999999999-10000000000000+1) + 10000000000000),
-		"RecordType": "A",
+		"RecordType": recordType,
 		"RecordId":   dnsId,
 		"RecordLine": "默认",
 		"SecretId":   apiKey,
@@ -355,6 +337,51 @@ func tencentDnsIpEdit(ip string) error {
 	return nil
 }
 
+func nameSiloDnsIpEdit(ip string) error {
+	reqBody := map[string]interface{}{
+		"domain":  domain,
+		"key":     apiKey,
+		"rrhost":  hostRecord,
+		"rrid":    dnsId,
+		"rrvalue": recordType + "-" + ip,
+		"type":    "xml",
+		"version": "1",
+	}
+	queryParams := url.Values{}
+	for key, value := range reqBody {
+		queryParams.Set(key, value.(string))
+	}
+	CanonicalizedQueryString := queryParams.Encode()
+	resp, err := http.Get("https://www.namesilo.com/api/dnsUpdateRecord?" + CanonicalizedQueryString)
+	if err != nil {
+		return errors.New("更改DNS解析失败：" + err.Error())
+	}
+	defer resp.Body.Close()
+	respBodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return errors.New("更改DNS解析失败：" + err.Error())
+	}
+
+	type Reply struct {
+		XMLName xml.Name `xml:"reply"`
+		Code    string   `xml:"code"`
+		Detail  string   `xml:"detail"`
+	}
+	type Response struct {
+		XMLName xml.Name `xml:"namesilo"`
+		Reply   Reply    `xml:"reply"`
+	}
+	var respBody Response
+	if err := xml.Unmarshal(respBodyBytes, &respBody); err != nil {
+		return errors.New("更改DNS解析失败：" + err.Error())
+	}
+	if respBody.Reply.Code != "300" {
+		return errors.New("更改DNS解析失败：" + respBody.Reply.Detail)
+	}
+
+	return nil
+}
+
 func main() {
 	err := initFlag()
 	if err != nil {
@@ -363,7 +390,7 @@ func main() {
 		return
 	}
 
-	ip, err := getClientIpv4()
+	ip, err := getClientIp()
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -397,8 +424,11 @@ func main() {
 		}
 	}
 	if dnsSever == "ns" {
-		fmt.Println("敬请期待")
-		return
+		err = nameSiloDnsIpEdit(ip)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 	}
 
 	fmt.Println("更改DNS解析成功：当前IP为" + ip)
