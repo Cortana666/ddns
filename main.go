@@ -165,7 +165,6 @@ func saveIp(ip string) error {
 			if err != nil {
 				return errors.New("文件创建失败：" + err.Error())
 			}
-			return nil
 		} else {
 			return errors.New("文件打开错误：" + err.Error())
 		}
