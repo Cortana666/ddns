@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -123,7 +124,13 @@ func getClientIp() (string, error) {
 }
 
 func checkIpChange(ip string) error {
-	_, err := os.Stat("tmp/" + dnsSever + "_" + dnsId + ".txt")
+	execPath, err := os.Executable()
+	if err != nil {
+		return errors.New("目录读取失败：" + err.Error())
+	}
+	execDir := filepath.Dir(execPath)
+
+	_, err = os.Stat(execDir + "/tmp/" + dnsSever + "_" + dnsId + ".txt")
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -132,7 +139,7 @@ func checkIpChange(ip string) error {
 		}
 	}
 
-	file, err := os.Open("tmp/" + dnsSever + "_" + dnsId + ".txt")
+	file, err := os.Open(execDir + "/tmp/" + dnsSever + "_" + dnsId + ".txt")
 	if err != nil {
 		return errors.New("文件打开错误：" + err.Error())
 	}
@@ -158,10 +165,16 @@ func checkIpChange(ip string) error {
 }
 
 func saveIp(ip string) error {
-	_, err := os.Stat("tmp/")
+	execPath, err := os.Executable()
+	if err != nil {
+		return errors.New("目录读取失败：" + err.Error())
+	}
+	execDir := filepath.Dir(execPath)
+
+	_, err = os.Stat(execDir + "/tmp/")
 	if err != nil {
 		if os.IsNotExist(err) {
-			err := os.Mkdir("tmp", 0755)
+			err := os.Mkdir(execDir+"/tmp", 0755)
 			if err != nil {
 				return errors.New("文件创建失败：" + err.Error())
 			}
@@ -170,7 +183,7 @@ func saveIp(ip string) error {
 		}
 	}
 
-	file, err := os.Create("tmp/" + dnsSever + "_" + dnsId + ".txt")
+	file, err := os.Create(execDir + "/tmp/" + dnsSever + "_" + dnsId + ".txt")
 	if err != nil {
 		return errors.New("文件创建失败：" + err.Error())
 	}
@@ -382,14 +395,16 @@ func nameSiloDnsIpEdit(ip string) error {
 }
 
 func main() {
-	loc, err := time.LoadLocation("Asia/Shanghai")
-	if err != nil {
-		fmt.Println(err.Error())
-		return
-	}
-	fmt.Println(time.Now().In(loc).Format(time.DateTime))
+	// loc, err := time.LoadLocation("Asia/Shanghai")
+	// if err != nil {
+	// 	fmt.Println(err.Error())
+	// 	return
+	// }
+	// fmt.Println(time.Now().In(loc).Format(time.DateTime))
+	fmt.Println("------------------------------")
+	fmt.Println(time.Now().Format(time.DateTime))
 
-	err = initFlag()
+	err := initFlag()
 	if err != nil {
 		fmt.Println(err)
 		printHelp()
