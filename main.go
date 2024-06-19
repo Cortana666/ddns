@@ -452,7 +452,7 @@ func main() {
 		}
 	}
 
-	fmt.Println("更改DNS解析成功：当前IP为" + ip)
+	fmt.Println(dnsSever + "：" + hostRecord + "：更改DNS解析成功：当前IP：" + ip)
 
 	err = saveIp(ip)
 	if err != nil {
