@@ -410,12 +410,14 @@ func main() {
 		printHelp()
 		return
 	}
+	fmt.Println(dnsSever + "：" + hostRecord)
 
 	ip, err := getClientIp()
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+	fmt.Println("当前IP：" + ip)
 
 	err = checkIpChange(ip)
 	if err != nil {
@@ -452,7 +454,7 @@ func main() {
 		}
 	}
 
-	fmt.Println(dnsSever + "：" + hostRecord + "：更改DNS解析成功：当前IP：" + ip)
+	fmt.Println("更改DNS解析成功：" + ip)
 
 	err = saveIp(ip)
 	if err != nil {
